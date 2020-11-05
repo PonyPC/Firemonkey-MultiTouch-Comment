@@ -3931,3 +3931,5 @@ Mentionnons aussi que nous avions commencé par tester les gestes simples
 # Other Helpful
 http://chrisbensen.blogspot.com/2009/10/touch-demo-part-iii.html
 http://chrisbensen.blogspot.com/2009/11/touch-demo-part-iv.html
+http://cc.embarcadero.com/item/27614
+http://cc.embarcadero.com/item/27469
