@@ -2523,3 +2523,6 @@ As with all the other demos in this series of articles, this will work on Window
 В [архиве к статье](http://rouse.drkb.ru/blog/multitouch.zip), данные изменения уже произведены.</div>
 
 </div>
+
+# Franch Reference
+http://www.jcolibri.com/articles/vcl_rtl/ecran_tactile_delphi_multi_touch/ecran_tactile_delphi_multi_touch.html
