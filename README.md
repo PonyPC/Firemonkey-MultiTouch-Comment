@@ -452,3 +452,308 @@ Indeed, we can see from these two tests that the execution of the _Touch Down_ a
 
 Another critical piece of information this test illustrates is that, when you remove a _Touch Point_, the Array position of all _subsequent Touch Points_ shifts back by 1\. This means that the _Index_ of a _Touch Point_ is not necessarily going to be the same at the _end_ of a _Touch Action_ as it was at the _beginning_.
 
+
+## Previously…
+
+We took a look at how the _OnTouch_ event introduced in XE7 works, and discovered some potential stumbling blocks when it comes to taking advantage of this new feature.
+
+In this part of the series, we’re going to look at potential “workarounds” for these problems; alternative (_albeit slightly more complicated_) methods of harnessing multi-touch input information for practical purposes in Delphi applications.
+
+## Another “quirk” in the way XE7’s Multi-Touch Input Handler Works
+
+Since posting the first article in this series, I have conducted many more tests, and discovered that it continues to track _Touch Move_ and _Touch Up_ events even after one or more _Touch Points_ leave the constraints of your Form.
+
+Now, this shouldn’t necessarily be considered a “bug” or even a problem, as it means we can (_in theory anyway_) use multi-touch input to perform “drag and drop” operations on Windows (_possibly also Mac_) beyond the constraints of your Form(s).
+
+It is, of course, fairly trivial to determine whether or not a _Touch Point_ is inside the constraints of your Form.
+
+I just wanted to share this observation for the benefit of others, as it may just effect the way you work with multi-touch input in your applications.
+
+## Detecting when a Multi-Touch Input Event Begins and Ends
+
+We previously discovered that th_e Touch Down_ action seems to occur once for each additional _Touch Point_ (_finger_) introduced to the touch screen (_effectively making that action “re-entrant”_), yet the _Touch Up_ action doesn’t _necessarily_ occur separately for each _Touch Point_ removed from the touch screen.
+
+So, since the _OnTouch_ event behaves in a somewhat-inconsistent way, we need an _inventive_ solution to decide when a multi-touch input event begins and ends.
+
+Since we _know_ that a multi-touch input event will begin with a _Touch Down_ action, we can define a Boolean member to act as a “flag”. Also, we can say with relative certainty that a multi-touch input event will end either with a _Touch Up_ action, or a _Touch Cancel_ action, and I’ve determined that, where it ends with a _Touch Up_ action, that action will contain either _one or zero_ items in the _Touch Point_ array (_Touches_ parameter).
+
+This means we have a logical principle on which to base our multi-touch input event detection.
+
+<pre class="brush: delphi; light: true; title: ; notranslate" title="">unit Unit2;
+
+interface
+
+uses
+  System.SysUtils, System.Types, System.UITypes, System.Classes, System.Variants,
+  FMX.Types, FMX.Controls, FMX.Forms, FMX.Graphics, FMX.Dialogs, FMX.StdCtrls;
+
+type
+  TForm2 = class(TForm)
+    Label1: TLabel;
+    procedure FormCreate(Sender: TObject);
+    procedure FormTouch(Sender: TObject; const Touches: TTouches; const Action: TTouchAction);
+  private
+    FTouching: Boolean;
+    FTouchHistory: Array of TTouches;
+    procedure TouchNone(Sender: TObject; const Touches: TTouches);
+    procedure TouchUp(Sender: TObject; const Touches: TTouches);
+    procedure TouchDown(Sender: TObject; const Touches: TTouches);
+    procedure TouchMove(Sender: TObject; const Touches: TTouches);
+    procedure TouchCancel(Sender: TObject; const Touches: TTouches);
+  public
+    { Public declarations }
+  end;
+
+var
+  Form2: TForm2;
+
+implementation
+
+{$R *.fmx}
+
+procedure TForm2.FormCreate(Sender: TObject);
+begin
+  FTouching := False;
+end;
+
+procedure TForm2.FormTouch(Sender: TObject; const Touches: TTouches; const Action: TTouchAction);
+begin
+  case Action of
+    TTouchAction.None: TouchNone(Sender, Touches);
+    TTouchAction.Up: TouchUp(Sender, Touches);
+    TTouchAction.Down: TouchDown(Sender, Touches);
+    TTouchAction.Move: TouchMove(Sender, Touches);
+    TTouchAction.Cancel: TouchCancel(Sender, Touches);
+  end;
+end;
+
+procedure TForm2.TouchCancel(Sender: TObject; const Touches: TTouches);
+begin
+  FTouching := False;
+  Label1.Text := 'Touch Cancelled!';
+end;
+
+procedure TForm2.TouchDown(Sender: TObject; const Touches: TTouches);
+begin
+  if (not FTouching) then
+  begin
+    FTouching := True;
+    Label1.Text := Format('Touch Points: %d', [Length(Touches)]);
+  end;
+end;
+
+procedure TForm2.TouchMove(Sender: TObject; const Touches: TTouches);
+begin
+  Label1.Text := Format('Touch Points: %d', [Length(Touches)]);
+end;
+
+procedure TForm2.TouchNone(Sender: TObject; const Touches: TTouches);
+begin
+  // I genuinely don't know what this is for!
+end;
+
+procedure TForm2.TouchUp(Sender: TObject; const Touches: TTouches);
+begin
+  if (FTouching) then
+  begin
+    if Length(Touches) <= 1 then
+    begin
+      FTouching := False;
+      Label1.Text := 'Not Touching';
+    end else
+      Label1.Text := Format('Touch Points: %d', [Length(Touches)]);
+  end;
+end;
+
+end.</pre>
+
+This code snip (_above_) works on Win32, Win64, Mac, Android and iOS. It illustrates a way of determining when an individual multi-touch input event begins and ends (_in this case, by displaying the current “Touch State” on a TLabel control on the Form_).
+
+Pay special attention to the _TouchUp_ procedure, which uses a simple _if_ statement to determine whether or not we should consider the multi-touch input event as completed.
+
+Put simply, while we won’t necessarily always get a _Touch Up_ action when each separate _Touch Point_ is lifted from the screen, we _always_ get at least _one_ (_assuming that we don’t get a Touch Cancel event instead, I mean_), and this final _Touch Up_ action will only ever contain either one or zero _Touch Points_ in the _Touches_ array.
+
+This gives us a very simple workaround for that inconsistent behaviour, one which (_according to my extensive testing, at least_) appears to work 100% of the time.
+
+The _FTouching_ boolean member plays a fairly important role, in that it prevents _TouchDown_ from acting in a re-entrant manner. It would be problematic (_to say the least_) if we allowed the _TouchDown_ procedure to perform its function multiple times during an existing _Touch Event_… particularly when you consider a “drag and drop” operation as an example.
+
+I also just want to point out that I have been completely unable to get _TouchNone_ to occur, on _any_ platform, under _any_ set of circumstances. At this point, I have genuinely _no idea_ what that particular _Touch Action Type_ is for, or under what set of bizarre circumstances it will occur.
+
+[You can download the working demo _tidied up a lot_ of this code snip here](https://github.com/PonyPC/Firemonkey-MultiTouch-Comment/raw/main/Touch_Start_End_Detection.zip "Demos - Touch Start End Detection")[)](https://github.com/PonyPC/Firemonkey-MultiTouch-Comment/raw/main/Touch_Start_End_Detection.zip "Demos - Touch Start End Detection").
+
+## Something Fun: Moving Controls At Runtime (using multi-touch input)
+
+Okay, now that we’ve solved the problem of adequately detecting when a multi-touch event starts and ends, let’s put this solution to use and make something entertaining.
+
+What we’re going to do now is make a little “multi-touch playground” project, allowing us to drag multiple controls around the screen at the same time with individual fingers on a touch screen. At face value, this little “toy project” might not seem all that useful, however this same principal can be applied to a simultaneous drag-and-drop solution that _could_ be useful.
+
+[![Multi-Touch Playground - Moving Controls](https://github.com/PonyPC/Firemonkey-MultiTouch-Comment/blob/main/Multi-Touch-Playground-Moving-Controls.png?raw=true)](https://github.com/PonyPC/Firemonkey-MultiTouch-Comment/blob/main/Multi-Touch-Playground-Moving-Controls.png?raw=true)
+
+Multi-Touch Playground – Moving Controls
+
+
+Basically, with this demo we can simply drop a bunch of controls onto the Form, and use multi-touch input to move one or more of those controls around.
+
+Here’s the code for this demo:
+
+<pre class="brush: delphi; light: true; title: ; notranslate" title="">unit uMainForm;
+
+interface
+
+uses
+  System.SysUtils, System.Types, System.UITypes, System.Classes, System.Variants,
+  FMX.Types, FMX.Controls, FMX.Forms, FMX.Graphics, FMX.Dialogs, FMX.Objects, FMX.StdCtrls;
+
+type
+  TControlTouch = record
+    Control: TControl;
+    Origin: TPointF;
+  end;
+
+  TfrmMain = class(TForm)
+    Rectangle1: TRectangle;
+    RoundRect1: TRoundRect;
+    Ellipse1: TEllipse;
+    Pie1: TPie;
+    Label1: TLabel;
+    Label2: TLabel;
+    procedure FormTouch(Sender: TObject; const Touches: TTouches; const Action: TTouchAction);
+  private
+    FTouching: Boolean;
+    FControls: Array of TControlTouch;
+    function GetControlAtPoint(const APoint: TPointF): TControl;
+    procedure GetControlsAtEachTouchPoint(const Touches: TTouches);
+    procedure TouchEnd;
+    procedure TouchNone(Sender: TObject; const Touches: TTouches);
+    procedure TouchUp(Sender: TObject; const Touches: TTouches);
+    procedure TouchDown(Sender: TObject; const Touches: TTouches);
+    procedure TouchMove(Sender: TObject; const Touches: TTouches);
+    procedure TouchCancel(Sender: TObject; const Touches: TTouches);
+  public
+    { Public declarations }
+  end;
+
+var
+  frmMain: TfrmMain;
+
+implementation
+
+{$R *.fmx}
+
+procedure TfrmMain.FormTouch(Sender: TObject; const Touches: TTouches; const Action: TTouchAction);
+begin
+  case Action of
+    TTouchAction.None: TouchNone(Sender, Touches);
+    TTouchAction.Up: TouchUp(Sender, Touches);
+    TTouchAction.Down: TouchDown(Sender, Touches);
+    TTouchAction.Move: TouchMove(Sender, Touches);
+    TTouchAction.Cancel: TouchCancel(Sender, Touches);
+  end;
+end;
+
+function TfrmMain.GetControlAtPoint(const APoint: TPointF): TControl;
+var
+  I: Integer;
+  LObject: TControl;
+  LRect: TRectF;
+begin
+  Result := nil;
+  for I := ChildrenCount - 1 downto 0 do
+  begin
+    if (Children[I] is TControl) then
+      if TControl(Children[I]).HitTest then
+      begin
+        LObject := TControl(Children[I]);
+        LRect := RectF(LObject.Position.X,
+                       LObject.Position.Y,
+                       LObject.Position.X + LObject.Width,
+                       LObject.Position.Y + LObject.Height);
+        if LRect.Contains(APoint) then
+        begin
+          Result := LObject;
+          Break;
+        end;
+      end;
+  end;
+end;
+
+procedure TfrmMain.GetControlsAtEachTouchPoint(const Touches: TTouches);
+var
+  I: Integer;
+begin
+  // Hold a reference to whatever controls are under each respective touch point
+  SetLength(FControls, Length(Touches));
+  for I := Low(Touches) to High(Touches) do
+  begin
+    FControls[I].Control := GetControlAtPoint(Touches[I].Location);
+    FControls[I].Origin := Touches[I].Location;
+  end;
+end;
+
+procedure TfrmMain.TouchCancel(Sender: TObject; const Touches: TTouches);
+begin
+  TouchEnd;
+end;
+
+procedure TfrmMain.TouchDown(Sender: TObject; const Touches: TTouches);
+begin
+  if (not FTouching) then
+  begin
+    FTouching := True;
+    // Release any existing history
+    SetLength(FControls, 0);
+  end;
+  GetControlsAtEachTouchPoint(Touches);
+end;
+
+procedure TfrmMain.TouchEnd;
+begin
+  FTouching := False;
+end;
+
+procedure TfrmMain.TouchMove(Sender: TObject; const Touches: TTouches);
+var
+  I: Integer;
+  LDifference: TPointF;
+begin
+  if Length(Touches) = Length(FControls) then
+  begin
+    // Move the controls
+    for I := Low(Touches) to High(Touches) do
+      if FControls[I].Control <> nil then
+      begin
+        LDifference := PointF(Touches[I].Location.X - FControls[I].Origin.X,
+                              Touches[I].Location.Y - FControls[I].Origin.Y);
+        FControls[I].Control.Position.X := FControls[I].Control.Position.X + LDifference.X;
+        FControls[I].Control.Position.Y := FControls[I].Control.Position.Y + LDifference.Y;
+        FControls[I].Origin := Touches[I].Location;
+      end;
+  end else
+    GetControlsAtEachTouchPoint(Touches);
+end;
+
+procedure TfrmMain.TouchNone(Sender: TObject; const Touches: TTouches);
+begin
+
+end;
+
+procedure TfrmMain.TouchUp(Sender: TObject; const Touches: TTouches);
+begin
+  if (FTouching) and (Length(Touches) <= 1) then
+    TouchEnd
+  else
+    GetControlsAtEachTouchPoint(Touches);
+end;
+
+end.</pre>
+
+This code snip (_above_) obtains a handle on whatever control is underneath each _Touch Point_, and basically moves them by their respective offsets on each _Touch Move_ event.
+
+> Please note that this demo source observes the value of each control’s _HitTest_ property, so if you set _HitTest_ to _False_, you won’t be able to drag it around (such as the two _TLabel_ controls included in the downloadable sample)
+
+When the number of touch points changes, it re-establishes the Array of relevant controls for each _Touch Point_.
+
+As with all the other demos in this series of articles, this will work on Windows, Mac, iOS and Android.
+
+[You can download the working demo of this code snip here](https://github.com/PonyPC/Firemonkey-MultiTouch-Comment/raw/main/Touch_Moving_Controls.zip "Demos - Touch Playground (Moving Controls)").
+
