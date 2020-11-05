@@ -2525,4 +2525,1405 @@ As with all the other demos in this series of articles, this will work on Window
 </div>
 
 # Franch Reference
-http://www.jcolibri.com/articles/vcl_rtl/ecran_tactile_delphi_multi_touch/ecran_tactile_delphi_multi_touch.html
+<table border="0" bgcolor="CCFFFF" width="100%">
+
+<tbody>
+
+<tr>
+
+<td>
+
+## 
+
+<center><font color="#FF0000">Ecran Tactile Delphi Multi Touch</font> - John COLIBRI.</center>
+
+</td>
+
+</tr>
+
+</tbody>
+
+</table>
+
+> *   **résumé** : gestion Delphi des écrans tactiles multi-points: type d'écrans, test, messages souris, déplacement d'objets, message _wm_touch_, moteur d'inertie Windows  
+>     
+> *   **mots clé** : multi-touch, écran tactile, _RegisterTouchWindow_, _wm_Touch_, _PhysicalToLogicalPoint_, _iInertiaProcessor_, _iManipulationProcessor_  
+>     
+> *   **logiciel utilisé** : Windows XP personnel (pour compiler), Windows 7 (pour exécuter), Delphi Xe3  
+>     
+> *   **matériel utilisé** : Pentium 2.800 Mhz, 512 Meg de mémoire, 250 Giga disque dur, PackBell (Windows 7), écran iiYama t2250Mts  
+>     
+> *   **champ d'application** : Delphi 2010 et supérieurs  
+>     
+> *   **niveau** : développeur Delphi Windows  
+>     
+> *   **plan** :  
+>     
+>     *   [Ecrans tactiles Windows](#touch_screens)  
+>         
+>     *   [Ecran tactile iiYama](#iiyama_touch_screen)  
+>         
+>     *   [Mise en oeuvre Multi Touch Delphi](#multi_touch_delphi)  
+>         
+>     *   [Télécharger le code source Delphi](#telecharger_les_sources_delphi)
+
+* * *
+
+## <a name="touch_screens"></a>1 - Ecrans tactiles Windows Multi Touch
+
+Pour pouvoir recevoir les messages souris Windows correspondant au toucher, il faut disposer d'un équipement capable de détecter ces touchers, et installer les pilotes Windows correspondants.
+
+Parmi les équipement, mentionnons
+
+*   les portables tel que le HP TouchSmart (non essayé)  
+
+*   les PC-Ecrans en un seul appareil (Sony Vaio L - non essayé)  
+
+*   les touch-pads comme Dell Inspiron Mini 10 (non essayé)  
+
+*   les moniteurs séparés. Par exemple le iiYama t2250Mts (utilisé pour cet article)  
+
+* * *
+
+## <a name="iiyama_touch_screen"></a>2 - Ecran tactile iiYama Touch Screen
+
+Pour faire nos essais tactiles, nous avons utilisé un écran iiYama ProLite T2250Mts.
+
+Sur Amazon.fr, il nous a coûté 240 Euros TTC, livré en 2 jours.
+
+### 2.1 - Installation
+
+Pour l'installation
+
+*   connecter la prise écran  
+
+*   connecter AUSSI la prise USB  
+
+*   connecter la prise secteur  
+
+### 2.2 - Vérifications
+
+Pour Windows 7, en cliquant sur "Ordinateur | Propriétés", dans la section "Système" la présence de fonctionnalités tactiles est confirmée:
+
+![window_7_touch_capabilities](http://www.jcolibri.com/articles/vcl_rtl/ecran_tactile_delphi_multi_touch/_i_image/tou_07_window_7_touch_capabilities.png)
+
+Nous pouvons aussi vérifier que l'écran tactile est bien reconnu comme moniteur:
+
+![win7_touch_monitor](http://www.jcolibri.com/articles/vcl_rtl/ecran_tactile_delphi_multi_touch/_i_image/tou_02_win7_touch_monitor.png)
+
+Si toutefois ces deux conditions ne sont pas remplies, il est possible de télécharger le pilote iiYama pour le T2250Mts depuis le site iiYama.
+
+![driver_iiyama_t2250mts](http://www.jcolibri.com/articles/vcl_rtl/ecran_tactile_delphi_multi_touch/_i_image/tou_01_driver_iiyama_t2250mts.png)
+
+* * *
+
+## <a name="principe_touch"></a>3 - Principe Touch Screen
+
+Une fois l'écran installé, nous pourrons utiliser l'écran avec le doigt de la même façon que nous utilisons la souris:
+
+*   toucher l'écran a le même effet qu'un clic  
+
+*   toucher et traîner le doigt se comporte comme un tirer-glisser (drag and drop)  
+
+Nous pouvons le vérifier simplement en chargeant dans le bloc note (NOTEPAD.EXE) quelques lignes, et de sélectionner quelques lignes avec le doigt:
+
+![tou_03_notepad_touch_trial](http://www.jcolibri.com/articles/vcl_rtl/ecran_tactile_delphi_multi_touch/_i_image/tou_03_notepad_touch_trial.png)
+
+Et pour simuler le toucher avec deux doigts, nous pouvons charger MSPAINT.EXE, initialiser une nouvelle image ("Fichier | Nouveau"), puis tirer-glisser deux doigts sur l'écran:
+
+![u_04_paintbrush_touch_trial](http://www.jcolibri.com/articles/vcl_rtl/ecran_tactile_delphi_multi_touch/_i_image/tou_04_paintbrush_touch_trial.png)
+
+### 3.1 - Type d'écran
+
+Il existe fondamentalement deux générations d'écrans tactiles
+
+*   les écrans à toucher simple (single touch) pour lequel chaque toucher sera converti en message souris  
+
+*   les écrans à toucher multiple (multi-touch) qui intercepteront de un à 10 actions de toucher. Dans le cas de notre iiYama, il est capable de détecter deux toucher.  
+
+Sur Window avant Windows 7, les toucher étaient traduits en message souris usuels.
+
+Pour pouvoir distinguer les messages MouseMove des messages souris, le type _tShiftState_ a été redéfini comme suit:
+
+<table border="1" cellspacing="0" cellpadding="10" bgcolor="#FFDDFF" width="80%">
+
+<tbody>
+
+<tr>
+
+<td><font color="0">_TShiftState_</font> = <font color="FF0000">**Set**</font> <font color="FF0000">**Of**</font> (<font color="0">_ssShift_</font>, <font color="0">_ssAlt_</font>, <font color="0">_ssCtrl_</font>, <font color="0">_ssLeft_</font>, <font color="0">_ssRight_</font>, <font color="0">_ssMiddle_</font>, <font color="0">_ssDouble_</font>,   
+    <font color="0">_ssTouch_</font>, <font color="0">_ssPen_</font>, <font color="0">_ssCommand_</font></td>
+
+</tr>
+
+</tbody>
+
+</table>
+
+Nous pouvons donc détecter si _OnMouseMove_, par, exemple, a été provoqué par la souris ou par le toucher.
+
+Voici un premier exemple utilisant le toucher simple qui affiche simplement les messages souris
+
+<table>
+
+<tbody>
+
+<tr>
+
+<td valign="top">  ![](http://www.jcolibri.com/hand_4.gif)</td>
+
+<td>créez une nouvelle applications Vcl  
+</td>
+
+</tr>
+
+<tr>
+
+<td valign="top">  ![](http://www.jcolibri.com/hand_4.gif)</td>
+
+<td>créez les messages souris et affichez les informations souris correspondants
+
+<table border="1" cellspacing="0" cellpadding="10" bgcolor="#FFDDFF" width="80%">
+
+<tbody>
+
+<tr>
+
+<td><font color="FF0000">**Type**</font> <font color="0">_t_shift_type_</font>= (<font color="0">_ssShift_</font>, <font color="0">_ssAlt_</font>, <font color="0">_ssCtrl_</font>,                                                                                                 <font color="FF00FF">//</font>  
+        <font color="0">_ssLeft_</font>, <font color="0">_ssRight_</font>, <font color="0">_ssMiddle_</font>, <font color="0">_ssDouble_</font>, <font color="0">_ssTouch_</font>, <font color="0">_ssPen_</font>, <font color="0">_ssCommand_</font>);  
+     <font color="0">_t_shift_type_set_</font>= <font color="FF0000">**Set**</font> <font color="FF0000">**Of**</font> <font color="0">_t_shift_type_</font>;  
+
+<font color="FF0000">**Function**</font> <font color="0">_f_shift_type_name_</font>(<font color="0">_p_shift_type_</font>: <font color="0">_t_shift_type_</font>): <font color="FF0000">**String**</font>;  
+  <font color="FF0000">**Begin**</font>  
+    <font color="0">_Result_</font>:= <font color="0">_GetEnumName_</font>(<font color="0">_TypeInfo_</font>(<font color="0">_t_shift_type_</font>), <font color="0">_Integer_</font>(<font color="0">_p_shift_type_</font>));  
+  <font color="FF0000">**End**</font>;  
+
+<font color="FF0000">**Function**</font> <font color="0">_f_shift_state_set_</font>(<font color="0">_p_shift_state_set_</font>: <font color="0">_tShiftState_</font>): <font color="FF0000">**String**</font>;  
+  <font color="FF0000">**Var**</font> <font color="0">_l_shift_type_</font>: <font color="0">_t_shift_type_</font>;  
+      <font color="0">_l_shift_type_set_</font>: <font color="0">_t_shift_type_set_</font>;  
+  <font color="FF0000">**Begin**</font>  
+    <font color="0">_Result_</font>:= <font color="0000FF">''</font>;  
+
+    <font color="0">_Move_</font>(<font color="0">_p_shift_state_set_</font>, <font color="0">_l_shift_type_set_</font>, <font color="0">_SizeOf_</font>(<font color="0">_t_shift_type_set_</font>));  
+
+    <font color="FF0000">**For**</font> <font color="0">_l_shift_type_</font>:= <font color="0">_ssShift_</font> <font color="FF0000">**To**</font> <font color="0">_ssCommand_</font> <font color="FF0000">**Do**</font>  
+      <font color="FF0000">**If**</font> <font color="0">_l_shift_type_</font> <font color="FF0000">**In**</font> <font color="0">_l_shift_type_set_</font>  
+        <font color="FF0000">**Then**</font> <font color="0">_Result_</font>:= <font color="0">_Result_</font>+ <font color="0">_f_shift_type_name_</font>(<font color="0">_l_shift_type_</font>)+ <font color="0000FF">' '</font>;  
+  <font color="FF0000">**End**</font>; <font color="FF00FF">// f_shift_state_set</font>  
+
+<font color="FF0000">**Procedure**</font> <font color="0">_display_</font>(<font color="0">_p_text_</font>: <font color="FF0000">**String**</font>);  
+  <font color="FF0000">**Begin**</font>  
+    <font color="0">_Form1_</font>.<font color="0">_Memo1_</font>.<font color="0">_Lines_</font>.<font color="0">_Add_</font>(<font color="0">_p_text_</font>);  
+  <font color="FF0000">**End**</font>;  
+
+<font color="FF0000">**Var**</font> <font color="0">_g_event_count_</font>: <font color="0">_Integer_</font>= 0;  
+
+<font color="FF0000">**Procedure**</font> <font color="0">_TForm1_</font>.<font color="0">_FormMouseDown_</font>(<font color="0">_Sender_</font>: <font color="0">_TObject_</font>; <font color="0">_Button_</font>: <font color="0">_TMouseButton_</font>;  
+    <font color="0">_Shift_</font>: <font color="0">_TShiftState_</font>; <font color="0">_X_</font>, <font color="0">_Y_</font>: <font color="0">_Integer_</font>);  
+  <font color="FF0000">**Begin**</font>  
+    <font color="0">_display_</font>(<font color="0">_Format_</font>(<font color="0000FF">'%3d %-15s %4d %4d %s'</font>,  
+        [<font color="0">_g_event_count_</font>, <font color="0000FF">'MouseDown'</font>, <font color="0">_X_</font>, <font color="0">_Y_</font>, <font color="0">_f_shift_state_set_</font>(<font color="0">_Shift_</font>)]));  
+    <font color="0">_Inc_</font>(<font color="0">_g_event_count_</font>);  
+  <font color="FF0000">**End**</font>;  
+
+<font color="FF0000">**Procedure**</font> <font color="0">_TForm1_</font>.<font color="0">_FormMouseMove_</font>(<font color="0">_Sender_</font>: <font color="0">_TObject_</font>; <font color="0">_Shift_</font>: <font color="0">_TShiftState_</font>; <font color="0">_X_</font>,  
+    <font color="0">_Y_</font>: <font color="0">_Integer_</font>);  
+  <font color="FF0000">**Begin**</font>  
+    <font color="0">_display_</font>(<font color="0">_Format_</font>(<font color="0000FF">'%3d %-15s %4d %4d %s'</font>,  
+        [<font color="0">_g_event_count_</font>, <font color="0000FF">'MouseMove'</font>, <font color="0">_X_</font>, <font color="0">_Y_</font>, <font color="0">_f_shift_state_set_</font>(<font color="0">_Shift_</font>)]));  
+    <font color="0">_Inc_</font>(<font color="0">_g_event_count_</font>);  
+  <font color="FF0000">**End**</font>;  
+
+<font color="FF0000">**Procedure**</font> <font color="0">_TForm1_</font>.<font color="0">_FormMouseUp_</font>(<font color="0">_Sender_</font>: <font color="0">_TObject_</font>; <font color="0">_Button_</font>: <font color="0">_TMouseButton_</font>;  
+    <font color="0">_Shift_</font>: <font color="0">_TShiftState_</font>; <font color="0">_X_</font>, <font color="0">_Y_</font>: <font color="0">_Integer_</font>);  
+  <font color="FF0000">**Begin**</font>  
+    <font color="0">_display_</font>(<font color="0">_Format_</font>(<font color="0000FF">'%3d %-15s %4d %4d %s'</font>,  
+        [<font color="0">_g_event_count_</font>, <font color="0000FF">'MouseUp'</font>, <font color="0">_X_</font>, <font color="0">_Y_</font>, <font color="0">_f_shift_state_set_</font>(<font color="0">_Shift_</font>)]));  
+    <font color="0">_Inc_</font>(<font color="0">_g_event_count_</font>);  
+  <font color="FF0000">**End**</font>;  
+
+<font color="FF0000">**Procedure**</font> <font color="0">_TForm1_</font>.<font color="0">_FormClick_</font>(<font color="0">_Sender_</font>: <font color="0">_TObject_</font>);  
+  <font color="FF0000">**Begin**</font>  
+    <font color="0">_display_</font>(<font color="0">_Format_</font>(<font color="0000FF">'%3d %-15s '</font>,  
+        [<font color="0">_g_event_count_</font>, <font color="0000FF">'Click'</font>]));  
+    <font color="0">_Inc_</font>(<font color="0">_g_event_count_</font>);  
+  <font color="FF0000">**End**</font>;  
+
+<font color="FF0000">**Procedure**</font> <font color="0">_TForm1_</font>.<font color="0">_FormDblClick_</font>(<font color="0">_Sender_</font>: <font color="0">_TObject_</font>);  
+  <font color="FF0000">**Begin**</font>  
+    <font color="0">_display_</font>(<font color="0">_Format_</font>(<font color="0000FF">'%3d %-15s '</font>,  
+        [<font color="0">_g_event_count_</font>, <font color="0000FF">'DblClick'</font>]));  
+    <font color="0">_Inc_</font>(<font color="0">_g_event_count_</font>);  
+  <font color="FF0000">**End**</font>;  
+
+</td>
+
+</tr>
+
+</tbody>
+
+</table>
+
+</td>
+
+</tr>
+
+<tr>
+
+<td valign="top">  ![](http://www.jcolibri.com/hand_4.gif)</td>
+
+<td>compilez</td>
+
+</tr>
+
+<tr>
+
+<td valign="top">  ![](http://www.jcolibri.com/back_3.gif)</td>
+
+<td>voici un exemple d'exécution:
+
+![single_touch](http://www.jcolibri.com/articles/vcl_rtl/ecran_tactile_delphi_multi_touch/_i_image/tou_09_single_touch.png)  
+
+</td>
+
+</tr>
+
+</tbody>
+
+</table>
+
+Notez que
+
+*   comme _tShiftState_ utilise une définition sans passer par la définition préalable de l'énuméré, nous avons créé une définition "parallèle" pour pouvoir afficher les énumérés (cf le code)  
+
+*   une fois que nous avons touché, la position courante de la souris est celle du dernier toucher. Et même si nous ne touchons plus à l'écran ou la souris, nous continuons à recevoir des messages _OnMouseMove_. Pour arrêter ces messages, il suffit de déplacer le point sensible de la souris (avec la souris ou avec le doigt) en dehors du composant qui gère _OnMouseMove_  
+
+Et si nous tapotons deux fois l'écran, voici le résultat
+
+![single_touch_double_clic](http://www.jcolibri.com/articles/vcl_rtl/ecran_tactile_delphi_multi_touch/_i_image/tou_14_single_touch_double_clic.png)
+
+## <a name="multi_touch_delphi"></a>4 - Mise en oeuvre Multi Touch Delphi
+
+Nous pouvons aussi provoquer un _OnClic_ sur un bouton par tapotement:
+
+<table>
+
+<tbody>
+
+<tr>
+
+<td valign="top">  ![](http://www.jcolibri.com/hand_4.gif)</td>
+
+<td>créez une nouvelle applications Vcl  
+</td>
+
+</tr>
+
+<tr>
+
+<td valign="top">  ![](http://www.jcolibri.com/hand_4.gif)</td>
+
+<td>créez les messages souris et affichez les informations souris correspondants
+
+<table border="1" cellspacing="0" cellpadding="10" bgcolor="#FFDDFF" width="80%">
+
+<tbody>
+
+<tr>
+
+<td><font color="FF0000">**Procedure**</font> <font color="0">_TForm1_</font>.<font color="0">_Button1Click_</font>(<font color="0">_Sender_</font>: <font color="0">_TObject_</font>);                                                                                            <font color="FF00FF">//</font>  
+  <font color="FF0000">**Begin**</font>  
+    <font color="0">_display_</font>(<font color="0">_Format_</font>(<font color="0000FF">'%3d %-15s '</font>,  
+        [<font color="0">_g_event_count_</font>, <font color="0000FF">'BtnClick'</font>]));  
+    <font color="0">_Inc_</font>(<font color="0">_g_event_count_</font>);  
+  <font color="FF0000">**End**</font>;  
+</td>
+
+</tr>
+
+</tbody>
+
+</table>
+
+</td>
+
+</tr>
+
+<tr>
+
+<td valign="top">  ![](http://www.jcolibri.com/hand_4.gif)</td>
+
+<td>compilez</td>
+
+</tr>
+
+<tr>
+
+<td valign="top">  ![](http://www.jcolibri.com/back_3.gif)</td>
+
+<td>voici un exemple d'exécution:
+
+![button_clic](http://www.jcolibri.com/articles/vcl_rtl/ecran_tactile_delphi_multi_touch/_i_image/tou_10_button_clic.png)  
+
+</td>
+
+</tr>
+
+</tbody>
+
+</table>
+
+Notez que
+
+*   lorsque nous touchons _Button1_, un message _OnClic_ est bien généré  
+
+*   toutefois le clic ne provoque pas l'effet visuel d'enfoncement, comme pour un clic souris.  
+
+*   pour apercevoir l'effet d'enfoncement il faut déplacer le doigt lors du toucher.  
+
+### 4.1 - Toucher multiple (multi touch)
+
+Sur Windows 7, les touchers sont traduits en un message _wm_Touch_ qui comporte de nombreuses informations sur les touchers.
+
+Pour utiliser _wm_Touch_, il faut
+
+*   avoir un écran tactile  
+
+*   utiliser Windows 7 ou supérieur  
+
+*   enregistrer (et dé-enregistrer) chaque fenêtre censée recevoir _wm_Touch_  
+
+*   créer un gestionnaire d'événements _wm_Touch_  
+
+#### 4.1.1 - Enregistrement de la fenêtre
+
+Cet enregistrement est effectué en appelant _RegisterTouchWindow_ en fournissant la poignée de la fenêtre. Cet appel pourra donc se faire dans _CreateWnd_ ou dans _tForm_._OnCreate_. Par exemple :
+
+<center>
+
+<table border="1" cellspacing="0" cellpadding="10" bgcolor="#FFDDFF" width="80%">
+
+<tbody>
+
+<tr>
+
+<td><font color="FF0000">**Procedure**</font> <font color="0">_TForm1_</font>.<font color="0">_FormCreate_</font>(<font color="0">_Sender_</font>: <font color="0">_tObject_</font>);  
+  <font color="FF0000">**Begin**</font>  
+    <font color="0">_RegisterTouchWindow_</font>(<font color="0">_Handle_</font>, 0);  
+  <font color="FF0000">**End**</font>; <font color="FF00FF">// FormCreate</font>  
+</td>
+
+</tr>
+
+</tbody>
+
+</table>
+
+</center>
+
+Et lorsque nous n'avons plus besoin de recevoir les événements _wm_Touch_, nous appellerons _UnregisterTouchWindow_(_Handle_). Par Exemple dans _DestroyWnd_ ou dans _OnDestroy_
+
+#### 4.1.2 - Gestionnaire _wm_Touch_
+
+Nous créons donc un gestionnaire d'événements
+
+<center>
+
+<table border="1" cellspacing="0" cellpadding="10" bgcolor="#FFDDFF" width="80%">
+
+<tbody>
+
+<tr>
+
+<td><font color="FF0000">**Procedure**</font> <font color="0">_WMTouch_</font>(<font color="FF0000">**Var**</font> <font color="0">_Message_</font>: <font color="0">_TMessage_</font>); <font color="0">_message_</font> <font color="0">_WM_TOUCH_</font>;  
+</td>
+
+</tr>
+
+</tbody>
+
+</table>
+
+</center>
+
+et pour ce message:
+
+*   _Message_._lParam_ est est la poignée pour les informations touch  
+
+*   _Message_._wParam_ est le nombre de touchers (1 doigt, 2 doigts, ... 10 doigts) - doigt ou "pen"  
+
+Lorsque cet événement est appelé, nous devons
+
+*   déclare un tableau d'informations toucher  
+
+*   allouer un tableau pour récupérer les informations de chaque doigt  
+
+*   transférer les informations dans notre tableau par _GetTouchInputInfo_  
+
+*   lire les information pour chaque doigt  
+
+<center>
+
+<table border="1" cellspacing="0" cellpadding="10" bgcolor="#FFDDFF" width="80%">
+
+<tbody>
+
+<tr>
+
+<td><font color="FF0000">**Var**</font> <font color="0">_l_touchinput_array_</font>: <font color="FF0000">**Array**</font> <font color="FF0000">**Of**</font> <font color="0">_TTouchInput_</font>;  
+    <font color="0">_l_touchinput_</font>: <font color="0">_TTouchInput_</font>;  
+
+  <font color="0">_SetLength_</font>(<font color="0">_l_touchinput_array_</font>, <font color="0">_Message_</font>.<font color="0">_WParam_</font>);  
+
+  <font color="0">_GetTouchInputInfo_</font>(<font color="0">_Message_</font>.<font color="0">_LParam_</font>, <font color="0">_Message_</font>.<font color="0">_WParam_</font>,   
+      @<font color="0">_l_touchinput_array_</font>[0], <font color="0">_SizeOf_</font>(<font color="0">_TTouchInput_</font>));  
+
+  <font color="FF0000">**For**</font> <font color="0">_l_touchinput_</font> <font color="FF0000">**In**</font> <font color="0">_l_touchinput_array_</font> <font color="FF0000">**Do**</font>  
+    ...  
+
+</td>
+
+</tr>
+
+</tbody>
+
+</table>
+
+</center>
+
+_tTouchInput_ est défini dans Winapi.Windows par
+
+<center>
+
+<table border="1" cellspacing="0" cellpadding="10" bgcolor="#FFDDFF" width="80%">
+
+<tbody>
+
+<tr>
+
+<td><font color="FF0000">**Type**</font> <font color="0">_tTouchInput_</font> =  
+         <font color="FF0000">**Record**</font>  
+           <font color="0">_x_</font>: <font color="0">_Integer_</font>;  
+           <font color="0">_y_</font>: <font color="0">_Integer_</font>;  
+           <font color="0">_hSource_</font>: <font color="0">_THandle_</font>;  
+           <font color="0">_dwID_</font>: <font color="0">_DWORD_</font>;  
+           <font color="0">_dwFlags_</font>: <font color="0">_DWORD_</font>;  
+           <font color="0">_dwMask_</font>: <font color="0">_DWORD_</font>;  
+           <font color="0">_dwTime_</font>: <font color="0">_DWORD_</font>;  
+           <font color="0">_dwExtraInfo_</font>: <font color="0">_ULONG_PTR_</font>;  
+           <font color="0">_cxContact_</font>: <font color="0">_DWORD_</font>;  
+           <font color="0">_cyContact_</font>: <font color="0">_DWORD_</font>;  
+         <font color="FF0000">**End**</font>;  
+</td>
+
+</tr>
+
+</tbody>
+
+</table>
+
+</center>
+
+et
+
+*   _x_ et _y_ sont les coordonnées du point de toucher en "centièmes de pixel physique d'écran" (pour accomoder la haute définition)  
+
+*   _hSource_: la poignée du périphérique de saisie  
+
+*   _dwID_: un identificateur dont la valeur restera la même pendant toute la durée du toucher  
+
+*   _dwFlags_, _dwMask_: des informations sur le type de toucher (presser, relever, déplacement etc)  
+
+*   _dwTime_: la date de cet événement  
+
+*   _dwExtraInfo_  
+
+*   _cxContact_, _cyContact_: la taille de la zone de contact  
+
+Il faudra en général convertir les "centièmes de pixel physique d'écran" en pixel logiques en appelant _PhysicalToLogicalPoint_
+
+<center>
+
+<table border="1" cellspacing="0" cellpadding="10" bgcolor="#FFDDFF" width="80%">
+
+<tbody>
+
+<tr>
+
+<td><font color="FF0000">**Function**</font> <font color="0">_PhysicalToLogicalPoint_</font>(<font color="0">_hWnd_</font>: <font color="0">_HWND_</font>; <font color="FF0000">**Var**</font> <font color="0">_lpPoint_</font>: <font color="0">_TPoint_</font>): <font color="0">_BOOL_</font>; <font color="FF0000">**Stdcall**</font></td>
+
+</tr>
+
+</tbody>
+
+</table>
+
+</center>
+
+et
+
+*   _handle_ est la poignée du contrôle windows (la fenêtre ou un autre _tWinControl_)  
+
+*   _lpPoint_ est notre point physique en entrée, et point logique en sortie (paramètre **Var**)  
+
+Comme de plus les coordonnées sont relatives à l'écran, nous appelons aussi, en général _ScreenToClient_ pour avoir des coordonnées relatives à notre fenêtre
+
+Voici une application qui affiche le contenu de wm_touch
+
+<table>
+
+<tbody>
+
+<tr>
+
+<td valign="top">  ![](http://www.jcolibri.com/hand_4.gif)</td>
+
+<td>créez une application VCL  
+</td>
+
+</tr>
+
+<tr>
+
+<td valign="top">  ![](http://www.jcolibri.com/hand_4.gif)</td>
+
+<td>créez les événements qui enregistrent et dé-enregistrent la réception des événements _wm_Touch_
+
+<table border="1" cellspacing="0" cellpadding="10" bgcolor="#FFDDFF" width="80%">
+
+<tbody>
+
+<tr>
+
+<td><font color="FF0000">**Type**</font>                                                                                                                                                 <font color="FF00FF">//</font>  
+  <font color="0">_TForm1_</font> =   
+    <font color="FF0000">**Class**</font>(<font color="0">_TForm_</font>)  
+      <font color="FF00FF">// ...</font>  
+      <font color="FF0000">**Private**</font>  
+        <font color="FF0000">**Procedure**</font> <font color="0">_CreateWnd_</font>; <font color="FF0000">**Override**</font>;  
+        <font color="FF0000">**Procedure**</font> <font color="0">_DestroyWnd_</font>; <font color="FF0000">**Override**</font>;  
+      <font color="FF0000">**Public**</font>  
+      <font color="FF0000">**End**</font>;  
+
+<font color="FF0000">**Var**</font>  
+  <font color="0">_Form1_</font>: <font color="0">_TForm1_</font>;  
+
+<font color="FF0000">**Implementation**</font>  
+  <font color="FF0000">**Uses**</font> <font color="0">_Vcl_</font>.<font color="0">_Touch_</font>.<font color="0">_Gestures_</font>;  
+
+  <font color="FF00FF">{$R *.dfm}</font>  
+
+    <font color="FF0000">**Procedure**</font> <font color="0">_TForm1_</font>.<font color="0">_CreateWnd_</font>;  
+      <font color="FF0000">**Begin**</font>  
+        <font color="FF0000">**Inherited**</font>;  
+        <font color="0">_RegisterTouchWindow_</font>(<font color="0">_Handle_</font>, 0);  
+      <font color="FF0000">**End**</font>; <font color="FF00FF">// CreateWnd</font>  
+
+    <font color="FF0000">**Procedure**</font> <font color="0">_TForm1_</font>.<font color="0">_DestroyWnd_</font>;  
+      <font color="FF0000">**Begin**</font>  
+        <font color="FF0000">**Inherited**</font>;  
+        <font color="0">_UnregisterTouchWindow_</font>(<font color="0">_Handle_</font>);  
+      <font color="FF0000">**End**</font>; <font color="FF00FF">// DestroyWnd</font>  
+
+<font color="FF0000">**End**</font>
+
+</td>
+
+</tr>
+
+</tbody>
+
+</table>
+
+</td>
+
+</tr>
+
+<tr>
+
+<td valign="top">  ![](http://www.jcolibri.com/hand_4.gif)</td>
+
+<td>créez l'événement _OnMouseMove_ pour vérifier les informations _wm_touch_
+
+<table border="1" cellspacing="0" cellpadding="10" bgcolor="#FFDDFF" width="80%">
+
+<tbody>
+
+<tr>
+
+<td><font color="FF0000">**Type**</font>                                                                                                                                                 <font color="FF00FF">//</font>  
+  <font color="0">_TForm1_</font> =  
+      <font color="FF0000">**Class**</font>(<font color="0">_TForm_</font>)  
+        <font color="FF0000">**Procedure**</font> <font color="0">_FormMouseMove_</font>(<font color="0">_Sender_</font>: <font color="0">_TObject_</font>; <font color="0">_Shift_</font>: <font color="0">_TShiftState_</font>; <font color="0">_X_</font>, <font color="0">_Y_</font>: <font color="0">_Integer_</font>);  
+        <font color="FF00FF">// ...</font>  
+      <font color="FF0000">**End**</font>;  
+
+    <font color="FF0000">**Var**</font> <font color="0">_g_mousemove_X_</font>, <font color="0">_g_mousemove_Y_</font>: <font color="0">_Integer_</font>;  
+
+    <font color="FF0000">**Procedure**</font> <font color="0">_TForm1_</font>.<font color="0">_FormMouseMove_</font>(<font color="0">_Sender_</font>: <font color="0">_TObject_</font>; <font color="0">_Shift_</font>: <font color="0">_TShiftState_</font>;  
+        <font color="0">_X_</font>, <font color="0">_Y_</font>: <font color="0">_Integer_</font>);  
+      <font color="FF0000">**Begin**</font>  
+        <font color="0">_Panel1_</font>.<font color="0">_Caption_</font>:= <font color="0">_Format_</font>(<font color="0000FF">'  X=%3d Y=%3d'</font>, [<font color="0">_X_</font>, <font color="0">_Y_</font>]);  
+
+        <font color="0">_g_mousemove_X_</font>:= <font color="0">_X_</font>;  
+        <font color="0">_g_mousemove_Y_</font>:= <font color="0">_Y_</font>;  
+      <font color="FF0000">**End**</font>; <font color="FF00FF">// FormMouseMove</font>  
+
+<font color="FF0000">**End**</font>
+
+</td>
+
+</tr>
+
+</tbody>
+
+</table>
+
+</td>
+
+</tr>
+
+<tr>
+
+<td valign="top">  ![](http://www.jcolibri.com/hand_4.gif)</td>
+
+<td>créez un gestionnaire des messages _wm_Touch_ qui affiche la position de chaque doigt :
+
+<table border="1" cellspacing="0" cellpadding="10" bgcolor="#FFDDFF" width="80%">
+
+<tbody>
+
+<tr>
+
+<td><font color="FF0000">**Type**</font>  
+  <font color="0">_TForm1_</font> =  
+      <font color="FF0000">**Class**</font>(<font color="0">_TForm_</font>)  
+      <font color="FF0000">**Public**</font>  
+        <font color="FF0000">**Procedure**</font> <font color="0">_handle_wm_touch_</font>(<font color="FF0000">**Var**</font> <font color="0">_Message_</font>: <font color="0">_TMessage_</font>); <font color="0">_message_</font> <font color="0">_WM_TOUCH_</font>;  
+      <font color="FF0000">**End**</font>;  
+
+    <font color="FF0000">**Procedure**</font> <font color="0">_display_</font>(<font color="0">_p_text_</font>: <font color="FF0000">**String**</font>);  
+      <font color="FF0000">**Begin**</font>  
+        <font color="0">_Form1_</font>.<font color="0">_Memo1_</font>.<font color="0">_Lines_</font>.<font color="0">_Add_</font>(<font color="0">_p_text_</font>);  
+      <font color="FF0000">**End**</font>;  
+
+    <font color="FF0000">**Procedure**</font> <font color="0">_TForm1_</font>.<font color="0">_handle_wm_touch_</font>(<font color="FF0000">**Var**</font> <font color="0">_Message_</font>: <font color="0">_TMessage_</font>);  
+
+      <font color="FF0000">**Function**</font> <font color="0">_f_touchpoint_to_logical_point_</font>(<font color="FF0000">**Const**</font> <font color="0">_p_touch_point_</font>: <font color="0">_TTouchInput_</font>): <font color="0">_TPoint_</font>;  
+          <font color="FF00FF">// -- converts the physical (hi def) coordinates into physical screen pixels</font>  
+        <font color="FF0000">**Begin**</font>  
+          <font color="0">_Result_</font> := <font color="0">_Point_</font>(<font color="0">_p_touch_point_</font>.<font color="0">_X_</font> <font color="FF0000">**Div**</font> 100, <font color="0">_p_touch_point_</font>.<font color="0">_Y_</font> <font color="FF0000">**Div**</font> 100);  
+          <font color="0">_PhysicalToLogicalPoint_</font>(<font color="0">_Handle_</font>, <font color="0">_Result_</font>);  
+        <font color="FF0000">**End**</font>; <font color="FF00FF">// f_touchpoint_to_logical_point</font>  
+
+      <font color="FF0000">**Var**</font> <font color="0">_l_touchinput_array_</font>: <font color="FF0000">**Array**</font> <font color="FF0000">**Of**</font> <font color="0">_TTouchInput_</font>;  
+          <font color="0">_l_touchinput_</font>: <font color="0">_TTouchInput_</font>;  
+          <font color="0">_l_handled_</font>: <font color="0">_Boolean_</font>;  
+          <font color="0">_l_logical_point_</font>: <font color="0">_TPoint_</font>;  
+          <font color="0">_l_screen_point_</font>: <font color="0">_tPoint_</font>;  
+
+      <font color="FF0000">**Begin**</font> <font color="FF00FF">// handle_wm_touch</font>  
+        <font color="0">_l_handled_</font> := <font color="0">_False_</font>;  
+        <font color="0">_display_</font>(<font color="0000FF">'wm_touch, count '</font>+ <font color="0">_IntToStr_</font>(<font color="0">_Message_</font>.<font color="0">_WParam_</font>));  
+
+        <font color="0">_SetLength_</font>(<font color="0">_l_touchinput_array_</font>, <font color="0">_Message_</font>.<font color="0">_WParam_</font>);  
+
+        <font color="0">_GetTouchInputInfo_</font>(<font color="0">_Message_</font>.<font color="0">_LParam_</font>, <font color="0">_Message_</font>.<font color="0">_WParam_</font>, @<font color="0">_l_touchinput_array_</font>[0],  
+            <font color="0">_SizeOf_</font>(<font color="0">_TTouchInput_</font>));  
+
+        <font color="FF0000">**Try**</font>  
+          <font color="FF0000">**For**</font> <font color="0">_l_touchinput_</font> <font color="FF0000">**In**</font> <font color="0">_l_touchinput_array_</font> <font color="FF0000">**Do**</font>  
+          <font color="FF0000">**Begin**</font>  
+            <font color="0">_l_logical_point_</font>:= <font color="0">_f_touchpoint_to_logical_point_</font>(<font color="0">_l_touchinput_</font>);  
+            <font color="0">_l_screen_point_</font>:= <font color="0">_ScreenToClient_</font>(<font color="0">_l_logical_point_</font>);  
+            <font color="0">_display_</font>(<font color="0">_Format_</font> (<font color="0000FF">'    scr X=%3d Y=%3d   screen_X=%3d Y=%3d   move_X=%3d Y=%3d %s'</font>,  
+                [<font color="0">_l_logical_point_</font>.<font color="0">_X_</font>, <font color="0">_l_logical_point_</font>.<font color="0">_Y_</font>,  
+                 <font color="0">_l_screen_point_</font>.<font color="0">_X_</font>, <font color="0">_l_screen_point_</font>.<font color="0">_Y_</font>,  
+                 <font color="0">_g_mousemove_X_</font>, <font color="0">_g_mousemove_Y_</font>, <font color="0000FF">'<'</font>]));  
+          <font color="FF0000">**End**</font>; <font color="FF00FF">// for l_touchinput</font>  
+
+          <font color="0">_l_handled_</font> := <font color="0">_True_</font>;  
+        <font color="FF0000">**Finally**</font>  
+          <font color="FF0000">**If**</font> <font color="0">_l_handled_</font> <font color="FF0000">**Then**</font>  
+            <font color="0">_CloseTouchInputHandle_</font>(<font color="0">_Message_</font>.<font color="0">_LParam_</font>)  
+          <font color="FF0000">**Else**</font>  
+            <font color="FF0000">**Inherited**</font>;  
+        <font color="FF0000">**End**</font>;  
+      <font color="FF0000">**End**</font>; <font color="FF00FF">// handle_wm_touch</font>  
+
+</td>
+
+</tr>
+
+</tbody>
+
+</table>
+
+</td>
+
+</tr>
+
+<tr>
+
+<td valign="top">  ![](http://www.jcolibri.com/hand_4.gif)</td>
+
+<td>compilez et exécutez  
+</td>
+
+</tr>
+
+<tr>
+
+<td valign="top">  ![](http://www.jcolibri.com/back_3.gif)</td>
+
+<td>voici un exemple d'affichage avec 1 doigt :
+
+![wm_touch_one_finger](http://www.jcolibri.com/articles/vcl_rtl/ecran_tactile_delphi_multi_touch/_i_image/tou_11_wm_touch_one_finger.png)
+
+</td>
+
+</tr>
+
+<tr>
+
+<td valign="top">  ![](http://www.jcolibri.com/back_3.gif)</td>
+
+<td>voici un exemple d'affichage avec 2 doigts :
+
+![wm_touch_two_finger](http://www.jcolibri.com/articles/vcl_rtl/ecran_tactile_delphi_multi_touch/_i_image/tou_12_wm_touch_two_finger.png)  
+
+</td>
+
+</tr>
+
+</tbody>
+
+</table>
+
+Nous pouvons exploiter _wm_Touch_ pour déplacer un élément à l'écran. Nous pouvons, par exemple, déplacer un cercle à l'écran :
+
+<center>
+
+<table border="1" cellspacing="0" cellpadding="10" bgcolor="#FFDDFF" width="80%">
+
+<tbody>
+
+<tr>
+
+<td>\<font color="FF0000">**Var**</font> <font color="0">_g_center_x_</font>, <font color="0">_g_center_y_</font>: <font color="0">_Integer_</font>;  
+
+<font color="FF0000">**Procedure**</font> <font color="0">_TForm1_</font>.<font color="0">_FormPaint_</font>(<font color="0">_Sender_</font>: <font color="0">_TObject_</font>);  
+  <font color="FF0000">**Begin**</font>  
+    <font color="0">_Canvas_</font>.<font color="0">_Ellipse_</font>(<font color="0">_g_center_x_</font>- <font color="0">_k_radius_</font>, <font color="0">_g_center_y_</font>- <font color="0">_k_radius_</font>,  
+        <font color="0">_g_center_x_</font>+ <font color="0">_k_radius_</font>, <font color="0">_g_center_y_</font>+ <font color="0">_k_radius_</font>);  
+  <font color="FF0000">**End**</font>;  
+
+<font color="FF0000">**Procedure**</font> <font color="0">_TForm1_</font>.<font color="0">_handle_wm_touch_</font>(<font color="FF0000">**Var**</font> <font color="0">_Message_</font>: <font color="0">_TMessage_</font>);  
+
+  <font color="FF00FF">// ooo</font>  
+
+  <font color="FF0000">**Begin**</font> <font color="FF00FF">// handle_wm_touch</font>  
+    <font color="FF00FF">// ooo</font>  
+
+    <font color="FF0000">**Try**</font>  
+      <font color="FF0000">**For**</font> <font color="0">_l_touchinput_</font> <font color="FF0000">**In**</font> <font color="0">_l_touchinput_array_</font> <font color="FF0000">**Do**</font>  
+      <font color="FF0000">**Begin**</font>  
+        <font color="0">_l_logical_point_</font>:= <font color="0">_f_touchpoint_to_logical_point_</font>(<font color="0">_l_touchinput_</font>);  
+        <font color="0">_l_screen_point_</font>:= <font color="0">_ScreenToClient_</font>(<font color="0">_l_logical_point_</font>);  
+
+        <font color="FF0000">**If**</font> (<font color="0">_l_touchinput_</font>.<font color="0">_dwFlags_</font> <font color="FF0000">**And**</font> <font color="0">_TouchEventF_Move_</font>)<> 0  
+          <font color="FF0000">**Then**</font> <font color="FF0000">**Begin**</font>  
+              <font color="0">_g_center_x_</font>:= <font color="0">_l_screen_point_</font>.<font color="0">_X_</font>;  
+              <font color="0">_g_center_y_</font>:= <font color="0">_l_screen_point_</font>.<font color="0">_Y_</font>;  
+              <font color="0">_OnPaint_</font>(<font color="FF0000">**Nil**</font>);  
+            <font color="FF0000">**End**</font>;  
+
+      <font color="FF0000">**End**</font>; <font color="FF00FF">// for l_touchinput</font>  
+
+      <font color="FF00FF">// ooo</font>  
+  <font color="FF0000">**End**</font>; <font color="FF00FF">// handle_wm_touch</font>  
+
+</td>
+
+</tr>
+
+</tbody>
+
+</table>
+
+</center>
+
+et voici un exemple d'exécution :
+
+![tou_05_wm_touch_move_object](http://www.jcolibri.com/articles/vcl_rtl/ecran_tactile_delphi_multi_touch/_i_image/tou_05_wm_touch_move_object.png)
+
+Notez que :
+
+*   nous avons volontairement appelé _OnPaint_ pour afficher un nouveau cercle, ce qui laisse les cercles précédents à l'écran. Pour ne visualiser que la position courante, il faut appeler _wla_ nouvelle  
+
+*   nous pouvons aussi utiliser les autres constantes telles que _TouchEventF_Up_ etc pour traiter les autres types d'actions  
+
+*   pour déplacer le cercle uniquement si le doigt est dans le cercle, il faudrait tester la position du doigt par rapport au cercle  
+
+*   comme nous pouvons détecter 2 doigts, nous pourrions aussi tester l'action des deux doigts (agrandir le cercle etc)  
+
+### 4.2 - Toucher et Inertie
+
+Windows 7 propose aussi un "Manipulation Engine" et "Inertia Engine" qui permettent des effets tels que des continuation ou des amortissements de mouvements.
+
+Ces moteurs peuvent être utilisés sans le toucher, mais dans l'exemple qui suit, nous allons utiliser le toucher d'un point pour déplacer un cercle à l'écran.
+
+Pour utiliser ces moteurs:
+
+*   nous créons une **Class**e Delphi descendante de __IManipulationEvents_  
+
+*   cette **Class**e crée les deux moteurs, sous forme d'objets COM  
+
+*   il faut ensuite implémenter les méthodes exigée par __IManipulationEvents_.  
+
+Au niveau fonctionnement:
+
+*   l'objet COM manipulateur  
+
+    *   est informé des événements souris (toucher) par les méthodes _ProcessDown_, _ProcessMove_, _ProcessUp_  
+
+    *   peut fournir des information par des méthodes telles que _GetVelocityX_  
+
+*   l'objet COM inertie  
+
+    *   est initialisé par des limites de déplacement (_put_BoundaryLeft_ ...)  
+
+    *   peut utiliser des lignes d'élasticité (rebondissement) (_put_ElasticMarginLeft_ ...)  
+
+    *   l'inertie est lancée par _put_InitialVelocityX_, et _put_InitialOriginX_  
+
+    *   peut fournir des informations en interrogeant _Process_  
+
+A titre d'exemple
+
+*   nous déplaçons avec inertie un cercle à l'écran  
+
+*   nous définissons deux rectangles à l'écran:  
+
+    *   un rectangle intérieur où le cercle ne doit pas pénétrer'  
+
+    *   un rectangle englobant le précédent sur les paroi duquel le cercle rebondira  
+
+*   nous trainerons le doigt à l'écran, ce qui lancera le mouvement, et, dès que nous lèverons le doit, le cercle continuera sur sa lancée, en rebondissant sur la paroi elastique, avec un certain ralentissement  
+
+Au niveau Delphi
+
+*   le cercle, avec ses moteurs COM sera initialisé dans _OnCreate_  
+
+*   les déplacement souris appelleront les mises à jour du manipulateur (down, move, up), qui afficheront le cercle  
+
+*   lorsque nous relèverons le doigt, le moteur d'inertie sera lancé. Pour visualiser le déplacement du cercle, nous utiliserons un _tTimer_ qui affichera la position du cercle durant cette fin de trajectoire  
+
+Comme pour le déplacement précédent, nous conserverons les différents affichages à l'écran :
+
+*   le premier toucher réinitialise l'affichage  
+
+*   lors du déplacement souris, le cercle sera vert  
+
+*   lors de mouvement piloté par l'inertie, le cercle sera jaune  
+
+*   la position finale sera rouge  
+
+Voici le code commenté
+
+*   la **Class**e est déclarée par:
+
+    <table border="1" cellspacing="0" cellpadding="10" bgcolor="#FFDDFF" width="80%">
+
+    <tbody>
+
+    <tr>
+
+    <td><font color="FF0000">**Uses**</font> <font color="0">_Classes_</font>, <font color="0">_Manipulations_</font>, <font color="0">_SysUtils_</font>, <font color="0">_Graphics_</font>, <font color="0">_Forms_</font>;  
+
+    <font color="FF0000">**Type**</font> <font color="0">_c_bouncing_ball_</font> =  
+             <font color="FF0000">**Class**</font>(<font color="0">_TInterfacedObject_</font>, <font color="0">__IManipulationEvents_</font>)  
+               <font color="FF0000">**Private**</font>  
+                 <font color="0">_FInertia_</font>: <font color="0">_IInertiaProcessor_</font>;  
+                 <font color="0">_FManipulator_</font>: <font color="0">_IManipulationProcessor_</font>;  
+
+                 <font color="0">_FInertiaCookie_</font>, <font color="0">_FManipulatorCookie_</font>: <font color="0">_LongInt_</font>;  
+
+                 <font color="0">_m_iniertia_completed_</font>: <font color="0">_LongBool_</font>;  
+                 <font color="0">_m_c_canvas_</font>: <font color="0">_tCanvas_</font>;  
+                 <font color="0">_m_mouse_is_down_</font>: <font color="0">_Boolean_</font>;  
+                 <font color="0">_m_boundary_width_</font>, <font color="0">_m_boundary_height_</font>: <font color="0">_Integer_</font>;  
+               <font color="FF0000">**Public**</font>  
+                 <font color="0">_m_x_</font>, <font color="0">_m_y_</font>, <font color="0">_m_radius_</font>: <font color="0">_Integer_</font>;  
+                 <font color="FF00FF">// -- IS is required by manipulator</font>  
+                 <font color="0">_m_id_</font>: <font color="0">_Integer_</font>;  
+
+                 <font color="0">_m_with_inertia_</font>, <font color="0">_m_with_manipulator_</font>: <font color="0">_Boolean_</font>;  
+
+                 <font color="FF00FF">{ _IManipulationEvents }</font>  
+                 <font color="FF0000">**Function**</font> <font color="0">_ManipulationStarted_</font>(<font color="0">_p_x_</font>: <font color="0">_Single_</font>; <font color="0">_p_y_</font>: <font color="0">_Single_</font>): <font color="0">_HRESULT_</font>; <font color="FF0000">**Stdcall**</font>;  
+                 <font color="FF0000">**Function**</font> <font color="0">_ManipulationDelta_</font>(<font color="0">_p_x_</font>: <font color="0">_Single_</font>; <font color="0">_p_y_</font>: <font color="0">_Single_</font>;   
+                   <font color="0">_translationDeltaX_</font>: <font color="0">_Single_</font>;  
+                   <font color="0">_translationDeltaY_</font>: <font color="0">_Single_</font>; <font color="0">_scaleDelta_</font>: <font color="0">_Single_</font>; <font color="0">_expansionDelta_</font>: <font color="0">_Single_</font>;  
+                   <font color="0">_rotationDelta_</font>: <font color="0">_Single_</font>; <font color="0">_cumulativeTranslationX_</font>: <font color="0">_Single_</font>;  
+                   <font color="0">_cumulativeTranslationY_</font>: <font color="0">_Single_</font>; <font color="0">_cumulativeScale_</font>: <font color="0">_Single_</font>;  
+                   <font color="0">_cumulativeExpansion_</font>: <font color="0">_Single_</font>; <font color="0">_cumulativeRotation_</font>: <font color="0">_Single_</font>): <font color="0">_HRESULT_</font>;  
+                   <font color="FF0000">**Stdcall**</font>;  
+                 <font color="FF0000">**Function**</font> <font color="0">_ManipulationCompleted_</font>(<font color="0">_p_x_</font>: <font color="0">_Single_</font>; <font color="0">_p_y_</font>: <font color="0">_Single_</font>;  
+                   <font color="0">_cumulativeTranslationX_</font>: <font color="0">_Single_</font>; <font color="0">_cumulativeTranslationY_</font>: <font color="0">_Single_</font>;  
+                   <font color="0">_cumulativeScale_</font>: <font color="0">_Single_</font>; <font color="0">_cumulativeExpansion_</font>: <font color="0">_Single_</font>;  
+                   <font color="0">_cumulativeRotation_</font>: <font color="0">_Single_</font>): <font color="0">_HRESULT_</font>; <font color="FF0000">**Stdcall**</font>;  
+               <font color="FF0000">**Public**</font>  
+                 <font color="FF0000">**Constructor**</font> <font color="0">_create_bouncing_ball_</font>(<font color="0">_p_width_</font>, <font color="0">_p_height_</font>: <font color="0">_Integer_</font>;  
+                     <font color="0">_p_inertia_</font>, <font color="0">_p_manipulator_</font>: <font color="0">_Boolean_</font>;  
+                     <font color="0">_p_c_canvas_</font>: <font color="0">_tCanvas_</font>);  
+                 <font color="FF0000">**Procedure**</font> <font color="0">_draw_ball_</font>(<font color="0">_p_color_</font>: <font color="0">_Integer_</font>);  
+
+                 <font color="FF0000">**Procedure**</font> <font color="0">_do_mouse_down_</font>(<font color="0">_p_x_</font>, <font color="0">_p_y_</font>: <font color="0">_Integer_</font>);  
+                 <font color="FF0000">**Procedure**</font> <font color="0">_do_mouse_move_</font>(<font color="0">_p_x_</font>, <font color="0">_p_y_</font>: <font color="0">_Integer_</font>);  
+                 <font color="FF0000">**Procedure**</font> <font color="0">_do_mouse_up_</font>(<font color="0">_p_x_</font>, <font color="0">_p_y_</font>: <font color="0">_Integer_</font>);  
+
+                 <font color="FF0000">**Procedure**</font> <font color="0">_disconnect_engines_</font>;  
+                 <font color="FF0000">**Procedure**</font> <font color="0">_process_inertia_</font>;  
+
+                 <font color="FF0000">**Destructor**</font> <font color="0">_Destroy_</font>; <font color="FF0000">**Override**</font>;  
+             <font color="FF0000">**End**</font>; <font color="FF00FF">// c_bouncing_ball</font>  
+
+    </td>
+
+    </tr>
+
+    </tbody>
+
+    </table>
+
+*   le **Constructor** initialise les objets COM et les paramètres des parois
+
+    <table border="1" cellspacing="0" cellpadding="10" bgcolor="#FFDDFF" width="80%">
+
+    <tbody>
+
+    <tr>
+
+    <td><font color="FF0000">**Constructor**</font> <font color="0">_c_bouncing_ball_</font>.<font color="0">_create_bouncing_ball_</font>(<font color="0">_p_width_</font>, <font color="0">_p_height_</font>: <font color="0">_Integer_</font>;  
+        <font color="0">_p_inertia_</font>, <font color="0">_p_manipulator_</font>: <font color="0">_Boolean_</font>; <font color="0">_p_c_canvas_</font>: <font color="0">_tCanvas_</font>);  
+    <font color="FF0000">**Begin**</font>  
+      <font color="FF0000">**Inherited**</font> <font color="0">_Create_</font>;  
+
+      <font color="0">_m_boundary_width_</font>:= <font color="0">_p_width_</font>;  
+      <font color="0">_m_boundary_height_</font>:= <font color="0">_p_height_</font>;  
+
+      <font color="0">_m_with_inertia_</font>:= <font color="0">_p_inertia_</font>;  
+      <font color="0">_m_with_manipulator_</font>:= <font color="0">_p_manipulator_</font>;  
+      <font color="0">_m_c_canvas_</font>:= <font color="0">_p_c_canvas_</font>;  
+
+      <font color="0">_m_x_</font> := <font color="0">_p_width_</font> <font color="FF0000">**Div**</font> 2;  
+      <font color="0">_m_y_</font> := <font color="0">_p_height_</font> <font color="FF0000">**Div**</font> 2;  
+      <font color="0">_m_radius_</font> := 20;  
+      <font color="0">_m_id_</font> := 1;  
+
+      <font color="0">_m_iniertia_completed_</font> := <font color="0">_True_</font>;  
+
+      <font color="0">_FInertia_</font> := <font color="0">_CreateComObject_</font>(<font color="0">_CLSID_IInertiaProcessor_</font>) <font color="FF0000">**As**</font> <font color="0">_IInertiaProcessor_</font>;  
+      <font color="0">_FManipulator_</font> := <font color="0">_CreateComObject_</font>(<font color="0">_CLSID_IManipulationProcessor_</font>)   
+          <font color="FF0000">**As**</font> <font color="0">_IManipulationProcessor_</font>;  
+
+      <font color="0">_InterfaceConnect_</font>(<font color="0">_FInertia_</font>, <font color="0">__IManipulationEvents_</font>, <font color="0">_Self_</font>, <font color="0">_FInertiaCookie_</font>);  
+      <font color="0">_InterfaceConnect_</font>(<font color="0">_FManipulator_</font>, <font color="0">__IManipulationEvents_</font>, <font color="0">_Self_</font>, <font color="0">_FManipulatorCookie_</font>);  
+
+      <font color="0">_FInertia_</font>.<font color="0">_put_DesiredDeceleration_</font>(0.001);  
+
+      <font color="0">_FInertia_</font>.<font color="0">_put_BoundaryLeft_</font>(200);  
+      <font color="0">_FInertia_</font>.<font color="0">_put_BoundaryTop_</font>(200);  
+      <font color="0">_FInertia_</font>.<font color="0">_put_BoundaryRight_</font>(<font color="0">_m_boundary_width_</font>- 100);  
+      <font color="0">_FInertia_</font>.<font color="0">_put_BoundaryBottom_</font>(<font color="0">_m_boundary_height_</font>- 100);  
+
+      <font color="0">_FInertia_</font>.<font color="0">_put_ElasticMarginLeft_</font>(100);  
+      <font color="0">_FInertia_</font>.<font color="0">_put_ElasticMarginTop_</font>(100);  
+      <font color="0">_FInertia_</font>.<font color="0">_put_ElasticMarginRight_</font>(100);  
+      <font color="0">_FInertia_</font>.<font color="0">_put_ElasticMarginBottom_</font>(100);  
+    <font color="FF0000">**End**</font>; <font color="FF00FF">// create_bouncing_ball</font>  
+
+    </td>
+
+    </tr>
+
+    </tbody>
+
+    </table>
+
+*   les événements exigés par __IManipulationEvents_ sont
+
+    <table border="1" cellspacing="0" cellpadding="10" bgcolor="#FFDDFF" width="80%">
+
+    <tbody>
+
+    <tr>
+
+    <td><font color="FF0000">**Function**</font> <font color="0">_c_bouncing_ball_</font>.<font color="0">_ManipulationStarted_</font>(<font color="0">_p_x_</font>, <font color="0">_p_y_</font>: <font color="0">_Single_</font>): <font color="0">_HRESULT_</font>;  
+      <font color="FF0000">**Begin**</font>  
+        <font color="0">_Result_</font> := <font color="0">_S_OK_</font>;  
+      <font color="FF0000">**End**</font>;  
+
+    <font color="FF0000">**Function**</font> <font color="0">_c_bouncing_ball_</font>.<font color="0">_ManipulationDelta_</font>(<font color="0">_p_x_</font>, <font color="0">_p_y_</font>, <font color="0">_translationDeltaX_</font>, <font color="0">_translationDeltaY_</font>,  
+        <font color="0">_scaleDelta_</font>, <font color="0">_expansionDelta_</font>, <font color="0">_rotationDelta_</font>, <font color="0">_cumulativeTranslationX_</font>,  
+        <font color="0">_cumulativeTranslationY_</font>, <font color="0">_cumulativeScale_</font>, <font color="0">_cumulativeExpansion_</font>,  
+        <font color="0">_cumulativeRotation_</font>: <font color="0">_Single_</font>): <font color="0">_HRESULT_</font>;  
+      <font color="FF0000">**Begin**</font>  
+        <font color="0">_m_x_</font>:= <font color="0">_Round_</font>(<font color="0">_p_x_</font>);  
+        <font color="0">_m_y_</font> := <font color="0">_Round_</font>(<font color="0">_p_y_</font>);  
+        <font color="0">_Result_</font>:= <font color="0">_S_OK_</font>;  
+      <font color="FF0000">**End**</font>;  
+
+    <font color="FF0000">**Function**</font> <font color="0">_c_bouncing_ball_</font>.<font color="0">_ManipulationCompleted_</font>(<font color="0">_p_x_</font>, <font color="0">_p_y_</font>, <font color="0">_cumulativeTranslationX_</font>,  
+        <font color="0">_cumulativeTranslationY_</font>, <font color="0">_cumulativeScale_</font>, <font color="0">_cumulativeExpansion_</font>,  
+        <font color="0">_cumulativeRotation_</font>: <font color="0">_Single_</font>): <font color="0">_HRESULT_</font>;  
+      <font color="FF0000">**Begin**</font>  
+        <font color="0">_Result_</font> := <font color="0">_S_OK_</font>;  
+      <font color="FF0000">**End**</font>;  
+
+    </td>
+
+    </tr>
+
+    </tbody>
+
+    </table>
+
+    _ManipulationDelta_ mettra à jour la position du cercle à partir des information du manipulateur
+
+*   nos déplacements souris appelleront
+
+    <table border="1" cellspacing="0" cellpadding="10" bgcolor="#FFDDFF" width="80%">
+
+    <tbody>
+
+    <tr>
+
+    <td><font color="FF0000">**Procedure**</font> <font color="0">_c_bouncing_ball_</font>.<font color="0">_do_mouse_down_</font>(<font color="0">_p_x_</font>, <font color="0">_p_y_</font>: <font color="0">_Integer_</font>);  
+      <font color="FF0000">**Begin**</font>  
+        <font color="0">_FManipulator_</font>.<font color="0">_ProcessDown_</font>(<font color="0">_m_id_</font>, <font color="0">_p_x_</font>, <font color="0">_p_y_</font>);  
+        <font color="0">_draw_ball_</font>(<font color="0">_clBlue_</font>);  
+        <font color="0">_m_mouse_is_down_</font>:= <font color="0">_True_</font>;  
+      <font color="FF0000">**End**</font>; <font color="FF00FF">// do_mouse_down</font>  
+
+    <font color="FF0000">**Procedure**</font> <font color="0">_c_bouncing_ball_</font>.<font color="0">_do_mouse_move_</font>(<font color="0">_p_x_</font>, <font color="0">_p_y_</font>: <font color="0">_Integer_</font>);  
+      <font color="FF0000">**Begin**</font>  
+        <font color="FF0000">**If**</font> <font color="0">_m_mouse_is_down_</font>  
+          <font color="FF0000">**Then**</font> <font color="FF0000">**Begin**</font>  
+              <font color="0">_FManipulator_</font>.<font color="0">_ProcessMove_</font>(<font color="0">_m_id_</font>, <font color="0">_p_x_</font>, <font color="0">_p_y_</font>);  
+              <font color="0">_draw_ball_</font>(<font color="0">_clLime_</font>);  
+            <font color="FF0000">**End**</font>;  
+      <font color="FF0000">**End**</font>; <font color="FF00FF">// do_mouse_move</font>  
+
+    <font color="FF0000">**Procedure**</font> <font color="0">_c_bouncing_ball_</font>.<font color="0">_do_mouse_up_</font>(<font color="0">_p_x_</font>, <font color="0">_p_y_</font>: <font color="0">_Integer_</font>);  
+      <font color="FF0000">**Var**</font> <font color="0">_l_vx_</font>, <font color="0">_l_vy_</font>: <font color="0">_Single_</font>;  
+      <font color="FF0000">**Begin**</font>  
+        <font color="0">_FManipulator_</font>.<font color="0">_ProcessUp_</font>(<font color="0">_m_id_</font>, <font color="0">_p_x_</font>, <font color="0">_p_y_</font>);  
+        <font color="0">_draw_ball_</font>(<font color="0">_clGreen_</font>);  
+
+        <font color="FF0000">**If**</font> <font color="0">_m_with_inertia_</font>  
+          <font color="FF0000">**Then**</font> <font color="FF0000">**Begin**</font>  
+              <font color="0">_FManipulator_</font>.<font color="0">_GetVelocityX_</font>(<font color="0">_l_Vx_</font>);  
+              <font color="0">_FManipulator_</font>.<font color="0">_GetVelocityY_</font>(<font color="0">_l_Vy_</font>);  
+
+              <font color="0">_FInertia_</font>.<font color="0">_put_InitialVelocityX_</font>(<font color="0">_l_Vx_</font>);  
+              <font color="0">_FInertia_</font>.<font color="0">_put_InitialVelocityY_</font>(<font color="0">_l_Vy_</font>);  
+
+              <font color="0">_FInertia_</font>.<font color="0">_put_InitialOriginX_</font>(<font color="0">_m_x_</font>);  
+              <font color="0">_FInertia_</font>.<font color="0">_put_InitialOriginY_</font>(<font color="0">_m_y_</font>);  
+            <font color="FF0000">**End**</font>;  
+
+        <font color="0">_m_iniertia_completed_</font> := <font color="0">_False_</font>;  
+        <font color="0">_m_mouse_is_down_</font>:= <font color="0">_False_</font>;  
+      <font color="FF0000">**End**</font>; <font color="FF00FF">// do_mouse_up</font>  
+
+    </td>
+
+    </tr>
+
+    </tbody>
+
+    </table>
+
+    Ici, c'est _ProcessMove_ qui renseigne le moteur sur la position de notre doigt. Puis _ManipulationDelta_ mettra à jour la position de notre cercle
+
+*   le traitement inertiel est le suivant :
+
+    <table border="1" cellspacing="0" cellpadding="10" bgcolor="#FFDDFF" width="80%">
+
+    <tbody>
+
+    <tr>
+
+    <td><font color="FF0000">**Procedure**</font> <font color="0">_c_bouncing_ball_</font>.<font color="0">_process_inertia_</font>;  
+      <font color="FF0000">**Var**</font> <font color="0">_l_x_velocity_</font>: <font color="0">_single_</font>;  
+      <font color="FF0000">**Begin**</font>  
+        <font color="FF0000">**If**</font> <font color="0">_m_with_inertia_</font>  
+          <font color="FF0000">**Then**</font> <font color="FF0000">**Begin**</font>  
+              <font color="FF0000">**If**</font> <font color="0">_m_iniertia_completed_</font>  
+                <font color="FF0000">**Then**</font> <font color="0">_draw_ball_</font>(<font color="0">_clRed_</font>)  
+                <font color="FF0000">**Else**</font> <font color="FF0000">**Begin**</font>  
+                    <font color="0">_fInertia_</font>.<font color="0">_Process_</font>(<font color="0">_m_iniertia_completed_</font>);  
+                    <font color="0">_draw_ball_</font>(<font color="0">_clYellow_</font>);  
+                  <font color="FF0000">**End**</font>;  
+            <font color="FF0000">**End**</font>;  
+
+        <font color="0">_FManipulator_</font>.<font color="0">_GetVelocityX_</font> (<font color="0">_l_x_velocity_</font>);  
+        <font color="FF0000">**If**</font> <font color="FF0000">**Not**</font> <font color="0">_m_iniertia_completed_</font>  
+          <font color="FF0000">**Then**</font> <font color="0">_display_</font>(<font color="0000FF">'vel_x  '</font>+ <font color="0">_FloatToStr_</font>(<font color="0">_l_x_velocity_</font>));  
+      <font color="FF0000">**End**</font>; <font color="FF00FF">// process_inertia</font>  
+
+    </td>
+
+    </tr>
+
+    </tbody>
+
+    </table>
+
+*   et l'affichage du cercle est simplement
+
+    <table border="1" cellspacing="0" cellpadding="10" bgcolor="#FFDDFF" width="80%">
+
+    <tbody>
+
+    <tr>
+
+    <td><font color="FF0000">**Procedure**</font> <font color="0">_c_bouncing_ball_</font>.<font color="0">_draw_ball_</font>(<font color="0">_p_color_</font>: <font color="0">_Integer_</font>);  
+      <font color="FF0000">**Begin**</font>  
+        <font color="0">_m_c_canvas_</font>.<font color="0">_Brush_</font>.<font color="0">_Color_</font> := <font color="0">_p_color_</font>;  
+        <font color="0">_m_c_canvas_</font>.<font color="0">_Ellipse_</font>(<font color="0">_m_x_</font>- <font color="0">_m_radius_</font>, <font color="0">_m_y_</font>- <font color="0">_m_radius_</font>, <font color="0">_m_x_</font>+ <font color="0">_m_radius_</font>, <font color="0">_m_y_</font>+ <font color="0">_m_radius_</font>);  
+        <font color="0">_DrawFocusRect_</font>(<font color="0">_m_c_canvas_</font>.<font color="0">_Handle_</font>,  
+            <font color="0">_Rect_</font> (100, 100, <font color="0">_m_boundary_width_</font>, <font color="0">_m_boundary_height_</font>) );  
+        <font color="0">_DrawFocusRect_</font>(<font color="0">_m_c_canvas_</font>.<font color="0">_Handle_</font>,  
+            <font color="0">_Rect_</font> (200, 200, <font color="0">_m_boundary_width_</font>- 100, <font color="0">_m_boundary_height_</font>- 100));  
+      <font color="FF0000">**End**</font>;  
+    </td>
+
+    </tr>
+
+    </tbody>
+
+    </table>
+
+A présent, voici la forme:
+
+*   la création de la forme et du cercle :
+
+    <table border="1" cellspacing="0" cellpadding="10" bgcolor="#FFDDFF" width="80%">
+
+    <tbody>
+
+    <tr>
+
+    <td><font color="FF0000">**Var**</font> <font color="0">_g_area_width_</font>: <font color="0">_Integer_</font>= 0;  
+        <font color="0">_g_c_bouncing_ball_</font>: <font color="0">_c_bouncing_ball_</font>= <font color="FF0000">**Nil**</font>;  
+
+    <font color="FF0000">**Procedure**</font> <font color="0">_TForm1_</font>.<font color="0">_FormCreate_</font>(<font color="0">_Sender_</font>: <font color="0">_TObject_</font>);  
+      <font color="FF0000">**Begin**</font>  
+        <font color="0">_initialize_display_</font>(<font color="0">_Memo1_</font>.<font color="0">_Lines_</font>);  
+
+        <font color="FF00FF">// -- disable div by 0 exceptions for the inertia processor</font>  
+        <font color="0">_Set8087CW_</font>($133<font color="0">_F_</font>);  
+
+        <font color="0">_g_area_width_</font>:= <font color="0">_Width_</font> - <font color="0">_Memo1_</font>.<font color="0">_Width_</font>;  
+
+        <font color="0">_g_c_bouncing_ball_</font> :=  
+            <font color="0">_c_bouncing_ball_</font>.<font color="0">_create_bouncing_ball_</font>(  
+              <font color="0">_g_area_width_</font>- 100, <font color="0">_Height_</font>- 100,  
+              <font color="0">_inertia__</font>.<font color="0">_Checked_</font>, <font color="0">_manipulator__</font>.<font color="0">_Checked_</font>, <font color="0">_Canvas_</font>);  
+      <font color="FF0000">**End**</font>; <font color="FF00FF">// FormCreate</font>  
+
+    </td>
+
+    </tr>
+
+    </tbody>
+
+    </table>
+
+*   les événements souris (provoqués par la souris, ou, dans notre cas, le doigt):
+
+    <table border="1" cellspacing="0" cellpadding="10" bgcolor="#FFDDFF" width="80%">
+
+    <tbody>
+
+    <tr>
+
+    <td><font color="FF0000">**Procedure**</font> <font color="0">_TForm1_</font>.<font color="0">_FormMouseDown_</font>(<font color="0">_Sender_</font>: <font color="0">_TObject_</font>; <font color="0">_Button_</font>: <font color="0">_TMouseButton_</font>;  
+        <font color="0">_Shift_</font>: <font color="0">_TShiftState_</font>; <font color="0">_X_</font>, <font color="0">_Y_</font>: <font color="0">_Integer_</font>);  
+      <font color="FF0000">**Begin**</font>  
+        <font color="0">_display_</font>(<font color="0000FF">'> FormMouseDown'</font>);  
+        <font color="0">_Timer1_</font>.<font color="0">_Enabled_</font> := <font color="0">_False_</font>;  
+        <font color="0">_g_c_bouncing_ball_</font>.<font color="0">_do_mouse_down_</font>(<font color="0">_X_</font>, <font color="0">_Y_</font>);  
+
+        <font color="FF00FF">// -- clear the scree before each move</font>  
+        <font color="0">_Invalidate_</font>;  
+      <font color="FF0000">**End**</font>; <font color="FF00FF">// FormMouseDown</font>  
+
+    <font color="FF0000">**Procedure**</font> <font color="0">_TForm1_</font>.<font color="0">_FormMouseMove_</font>(<font color="0">_Sender_</font>: <font color="0">_TObject_</font>; <font color="0">_Shift_</font>: <font color="0">_TShiftState_</font>; <font color="0">_X_</font>,  
+        <font color="0">_Y_</font>: <font color="0">_Integer_</font>);  
+      <font color="FF0000">**Begin**</font>  
+        <font color="0">_display_</font>(<font color="0000FF">'  FormMouseMove'</font>);  
+        <font color="0">_g_c_bouncing_ball_</font>.<font color="0">_do_mouse_move_</font>(<font color="0">_X_</font>, <font color="0">_Y_</font>);  
+        <font color="FF0000">**If**</font> <font color="0">_invalidate__</font>.<font color="0">_Checked_</font>  
+          <font color="FF0000">**Then**</font> <font color="0">_Invalidate_</font>;  
+      <font color="FF0000">**End**</font>; <font color="FF00FF">// FormMouseMove</font>  
+
+    <font color="FF0000">**Procedure**</font> <font color="0">_TForm1_</font>.<font color="0">_FormMouseUp_</font>(<font color="0">_Sender_</font>: <font color="0">_TObject_</font>; <font color="0">_Button_</font>: <font color="0">_TMouseButton_</font>;  
+        <font color="0">_Shift_</font>: <font color="0">_TShiftState_</font>; <font color="0">_X_</font>, <font color="0">_Y_</font>: <font color="0">_Integer_</font>);  
+      <font color="FF0000">**Begin**</font>  
+        <font color="0">_display_</font>(<font color="0000FF">'< FormMouseUP'</font>);  
+        <font color="0">_g_c_bouncing_ball_</font>.<font color="0">_do_mouse_up_</font>(<font color="0">_X_</font>, <font color="0">_Y_</font>);  
+
+        <font color="FF0000">**If**</font> <font color="0">_invalidate__</font>.<font color="0">_Checked_</font>  
+          <font color="FF0000">**Then**</font> <font color="0">_Invalidate_</font>;  
+
+        <font color="0">_Timer1_</font>.<font color="0">_Enabled_</font> := <font color="0">_True_</font>;  
+      <font color="FF0000">**End**</font>; <font color="FF00FF">// FormMouseUp</font>  
+
+    </td>
+
+    </tr>
+
+    </tbody>
+
+    </table>
+
+*   et le traitement du timer qui affiche la balle en jaune et interroge la vélocité inertielle :
+
+    <table border="1" cellspacing="0" cellpadding="10" bgcolor="#FFDDFF" width="80%">
+
+    <tbody>
+
+    <tr>
+
+    <td><font color="FF0000">**Procedure**</font> <font color="0">_TForm1_</font>.<font color="0">_Timer1Timer_</font>(<font color="0">_Sender_</font>: <font color="0">_TObject_</font>);  
+      <font color="FF0000">**Begin**</font>  
+        <font color="0">_g_c_bouncing_ball_</font>.<font color="0">_process_inertia_</font>;  
+
+        <font color="FF0000">**If**</font> <font color="0">_invalidate__</font>.<font color="0">_Checked_</font>  
+          <font color="FF0000">**Then**</font> <font color="0">_Invalidate_</font>  
+      <font color="FF0000">**End**</font>; <font color="FF00FF">// Timer1Timer</font>  
+
+    </td>
+
+    </tr>
+
+    </tbody>
+
+    </table>
+
+Voici un exemple ou nous faisons un arc en accélérant de la droite vers la gauche (vert), et l'inertie qui poursuit le mouvement en ralentissant (jaune) :
+
+![touch_manipulator_inertia_engine](http://www.jcolibri.com/articles/vcl_rtl/ecran_tactile_delphi_multi_touch/_i_image/tou_16_touch_manipulator_inertia_engine.png)
+
+Notez que
+
+*   plus les points sont rapprochés, plus le mouvement est lent  
+
+* * *
+
+## <a name="ameliorations"></a>5 - Améliorations et Remarques
+
+Il reste d'autres points à examiner
+
+*   la gestion de Direct2d et les WIC images. Ces possibilités permettent les manipulations d'images à l'écran (déplacements, agrandissements etc)  
+
+*   la gestion du clavier à l'écran  
+
+Mentionnons aussi que nous avions commencé à essayer nos programmes de gestes en Delphi XE2, puis avons basculé en XE3 pour le multi-touch. Certaines adaptations ont été nécessaires dans les primitives de conversion _wm_Touch_. Il est possible que ces librairies subissent d'autres changements pour leur adaptation / intégration à FireMonkey, iOs, Android etc.
+
+Ces techniques s'avèreront fondamentales pour la gestion des téléphones et des tablettes.
+
+* * *
+
+## <a name="telecharger_les_sources_delphi"></a>6 - Télécharger le code source Delphi
+
+Vous pouvez télécharger:
+
+*   [touch_01_single_touch_wm_mouse.zip](http://www.jcolibri.com/scripts/fcolibri.exe?a=1?filename=touch_01_single_touch_wm_mouse.zip) (81 K)  
+
+*   [touch_02_button_touch.zip](http://www.jcolibri.com/scripts/fcolibri.exe?a=1?filename=touch_02_button_touch.zip) (80 K)  
+
+*   [touch_03_wm_touch.zip](http://www.jcolibri.com/scripts/fcolibri.exe?a=1?filename=touch_03_wm_touch.zip) (82 K)  
+
+*   [touch_04_wm_touch_move_item.zip](http://www.jcolibri.com/scripts/fcolibri.exe?a=1?filename=touch_04_wm_touch_move_item.zip) (81 K)  
+
+*   [touch_05_inertia_engine.zip](http://www.jcolibri.com/scripts/fcolibri.exe?a=1?filename=touch_05_inertia_engine.zip) (160 K)  
+
+Comme d'habitude:
+
+*   nous vous remercions de nous signaler toute **erreur, inexactitude ou problème de téléchargement** en envoyant un e-mail à [jcolibri@jcolibri.com](mailto:jcolibri@jcolibri.com). Les corrections qui en résulteront pourront aider les prochains lecteurs  
+
+*   tous vos **commentaires, remarques, questions, critiques, suggestion d'article, ou mentions d'autres sources** sur le même sujet seront de même les bienvenus à [jcolibri@jcolibri.com](mailto:jcolibri@jcolibri.com).  
+
+*   plus simplement, vous pouvez taper (anonymement ou en fournissant votre e-mail pour une réponse) **vos commentaires** ci-dessus et nous les envoyer en **cliquant "envoyer"** :
+
+    <form method="POST" action="http://www.jcolibri.com/scripts/opinionj.exe">
+
+    <center>
+
+    <table border="1" cellspacing="0" cellpadding="2" bgcolor="#CCFFFF" width="80%">
+
+    <tbody>
+
+    <tr>
+
+    <td valign="top">Nom :</td>
+
+    <td><input type="text" size="70" name="firstname"></td>
+
+    </tr>
+
+    <tr>
+
+    <td valign="top">E-mail :</td>
+
+    <td><input type="text" size="70" name="email"></td>
+
+    </tr>
+
+    <tr>
+
+    <td valign="top" bgcolor="#FFFFCC"><font color="#FF0000">**Commentaires *** :</font></td>
+
+    <td bgcolor="#FFFFCC"><textarea class="clsInputBox" cols="53" name="ecran_tactile_delphi_multi_touch" rows="5" wrap="physical"></textarea></td>
+
+    </tr>
+
+    <tr>
+
+    <td valign="top" bgcolor="#CCFFFF"> </td>
+
+    <td bgcolor="#CCFFFF" align="center"><input type="submit" value="envoyer mes commentaires"></td>
+
+    </tr>
+
+    </tbody>
+
+    </table>
+
+    </center>
+
+    </form>
+
+*   et si vous avez apprécié cet article, **faites connaître notre site**, **ajoutez un lien dans vos listes de liens** ou **citez-nous dans vos blogs ou réponses sur les messageries**. C'est très simple: plus nous aurons de visiteurs et de références Google, plus nous écrirons d'articles.  
+
+* * *
+
+## 7 - Références
+
+Les codes sources ont été inspirés par les articles suivants;
+
+*   [**Touch Demo**](http://chrisbensen.blogspot.fr/2009/11/touch-demo.html)  
+      **Chris BENSEN** - Nov 2009  
+      tutorial en 4 parties
+*   [**Exemplos touch multitouch e gesture no delphi 2010**](http://www.andreanolanusse.com/pt/exemplos-touch-multitouch-e-gesture-no-delphi-2010/)  
+      **Andreano LANUSSE** - 2010  
+      exemples, entre autre un agrandissement d'image à deux doigts  
+
+Mentionnons aussi que nous avions commencé par tester les gestes simples
+
+*   [**Gestes Delphi**](http://www.jcolibri.com/articles/vcl_rtl/gestes_delphi/gestes_delphi.html)
