@@ -3933,3 +3933,94 @@ http://chrisbensen.blogspot.com/2009/10/touch-demo-part-iii.html
 http://chrisbensen.blogspot.com/2009/11/touch-demo-part-iv.html
 http://cc.embarcadero.com/item/27614
 http://cc.embarcadero.com/item/27469
+```
+unit Unit2;
+ 
+interface
+ 
+uses
+  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
+  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.ExtCtrls, Vcl.StdCtrls;
+ 
+type
+ 
+// 继承于panel 当然也可以是 form
+  TPanel = class(Vcl.ExtCtrls.TPanel)
+  protected
+    procedure CreateWnd; override;    // 关键覆盖这两个方法
+    procedure DestroyWnd; override;   //
+    procedure WMTouch(var Message: TMessage); message WM_TOUCH;  // 接收touch事件
+  end;
+ 
+  TForm1 = class(TForm)
+    Panel1: TPanel;
+    Panel2: TPanel;
+    Panel3: TPanel;
+  end;
+ 
+var
+  Form1: TForm1;
+ 
+implementation
+ 
+type
+  TOUCHINPUT = record
+    x: Integer;
+    y: Integer;
+    hSource: THandle;
+    dwID: DWORD;
+    dwFlags: DWORD;
+    dwMask: DWORD;
+    dwTime: DWORD;
+    dwExtraInfo: ULONG_PTR;
+    cxContact: DWORD;
+    cyContact: DWORD;
+  end;
+ 
+procedure TPanel.CreateWnd;
+begin
+  inherited;
+  RegisterTouchWindow(Handle, 0);
+end;
+ 
+procedure TPanel.DestroyWnd;
+begin
+  UnregisterTouchWindow(Handle);
+  inherited;
+end;
+ 
+procedure TPanel.WMTouch(var Message: TMessage);
+  function TouchPointToPoint(const TouchPoint: TTouchInput): TPoint;
+  begin
+    Result := Point(TouchPoint.X div 100, TouchPoint.Y div 100);
+    PhysicalToLogicalPoint(Handle, Result);
+  end;
+var
+  TouchInputs: array of TTouchInput;
+  TouchInput: TTouchInput;
+  Handled: Boolean;
+  Point: TPoint;
+begin
+  Handled := False;
+  SetLength(TouchInputs, Message.WParam);
+  GetTouchInputInfo(Message.LParam, Message.WParam,
+  @TouchInputs[0], SizeOf(TTouchInput));
+  try
+    for TouchInput in TouchInputs do
+    begin
+      Point := TouchPointToPoint(TouchInput);
+      if PtInRect(BoundsRect, Point) then
+      begin
+        //labelX.Caption := 'Touch ID: ' + IntToStr(TouchInput.dwID);
+        Top := Point.Y - 100;
+      end;
+      Handled := True;
+    end;
+  finally
+    if Handled then
+      CloseTouchInputHandle(Message.LParam)
+    else
+      inherited;
+  end;
+end;
+```
