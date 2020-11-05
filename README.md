@@ -3927,3 +3927,7 @@ Les codes sources ont été inspirés par les articles suivants;
 Mentionnons aussi que nous avions commencé par tester les gestes simples
 
 *   [**Gestes Delphi**](http://www.jcolibri.com/articles/vcl_rtl/gestes_delphi/gestes_delphi.html)
+
+# Other Helpful
+http://chrisbensen.blogspot.com/2009/10/touch-demo-part-iii.html
+http://chrisbensen.blogspot.com/2009/11/touch-demo-part-iv.html
